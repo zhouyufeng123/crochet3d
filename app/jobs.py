@@ -86,11 +86,11 @@ def create_job(name: str, image_files: list[tuple[str, bytes]]) -> dict:
 
 
 def _sweep_expired() -> None:
-    """清理超过保留期的重建记录，防止模型文件撑爆磁盘。"""
+    """清理超过保留期的重建记录。JOB_TTL_DAYS=0（默认）时不清理。"""
     ttl = config.JOB_TTL_DAYS * 86400
-    now = time.time()
-    if not config.JOBS_DIR.exists():
+    if ttl <= 0 or not config.JOBS_DIR.exists():
         return
+    now = time.time()
     for path in config.JOBS_DIR.iterdir():
         if not path.is_dir():
             continue
