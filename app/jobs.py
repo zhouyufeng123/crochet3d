@@ -85,7 +85,22 @@ def create_job(name: str, image_files: list[tuple[str, bytes]]) -> dict:
     return meta
 
 
+def _sweep_expired() -> None:
+    """清理超过保留期的重建记录，防止模型文件撑爆磁盘。"""
+    ttl = config.JOB_TTL_DAYS * 86400
+    now = time.time()
+    if not config.JOBS_DIR.exists():
+        return
+    for path in config.JOBS_DIR.iterdir():
+        if not path.is_dir():
+            continue
+        meta = read_meta(path.name)
+        if meta and now - meta.get("createdAt", now) > ttl:
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def list_jobs() -> list[dict]:
+    _sweep_expired()
     jobs = []
     if config.JOBS_DIR.exists():
         for path in config.JOBS_DIR.iterdir():

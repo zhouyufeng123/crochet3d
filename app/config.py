@@ -25,6 +25,8 @@ PORT = int(os.environ.get("PORT", "8000"))
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "data"))
 JOBS_DIR = DATA_DIR / "jobs"
+# 重建记录保留天数，超期自动清理（防止模型文件撑爆磁盘）
+JOB_TTL_DAYS = int(os.environ.get("JOB_TTL_DAYS", "7"))
 
 # 图解库文件夹（docx 图解）
 PATTERNS_DIR = Path(os.environ.get("PATTERNS_DIR", r"C:\Users\nebulaweek\Desktop\玩偶"))
