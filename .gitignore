@@ -1,0 +1,10 @@
+.env
+data/
+__pycache__/
+*.pyc
+.venv/
+venv/
+server.log
+_blind.json
+_*.png
+_*.json

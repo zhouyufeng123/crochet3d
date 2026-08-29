@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>钩织玩偶 3D 重建</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">🧶</span><h1>钩织玩偶 3D 重建</h1></div>
+    <span id="mock-badge" class="badge hidden">演练模式</span>
+  </header>
+
+  <main>
+    <!-- 上传区 -->
+    <section class="card" id="upload-card">
+      <h2>上传玩偶照片</h2>
+      <p class="hint">正面 1 张必备；有背面、顶部照片效果更好（最多 8 张，第一张为主视图）</p>
+      <div id="dropzone" class="dropzone">
+        <div class="dropzone-inner">
+          <div class="big">📸</div>
+          <p><strong>点击选择</strong> 或把照片拖到这里</p>
+          <p class="sub">JPG / PNG / WebP，每张不超过 25MB</p>
+        </div>
+        <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+      </div>
+      <div id="thumbs" class="thumbs hidden"></div>
+      <div class="name-row">
+        <input id="toy-name" type="text" maxlength="30" placeholder="给它起个名字（可选）">
+        <button id="submit-btn" class="primary" disabled>开始重建 ✨</button>
+      </div>
+      <p class="hint small">每次重建会消耗 API 额度，提交后请耐心等待</p>
+    </section>
+
+    <!-- 进行中任务 -->
+    <section class="card hidden" id="progress-card">
+      <h2 id="progress-title">任务进行中</h2>
+      <ol class="stepper" id="stepper">
+        <li data-step="uploading"><span class="dot"></span>上传图片</li>
+        <li data-step="reconstructing"><span class="dot"></span>AI 重建</li>
+        <li data-step="succeeded"><span class="dot"></span>完成</li>
+      </ol>
+      <div id="progress-detail" class="progress-detail"></div>
+      <div id="progress-error" class="error hidden"></div>
+    </section>
+
+    <!-- 查看器 -->
+    <section class="card hidden" id="viewer-card">
+      <h2 id="viewer-title">3D 模型</h2>
+      <p id="viewer-meta" class="hint"></p>
+      <model-viewer id="viewer" camera-controls interaction-prompt="none" auto-rotate
+        shadow-intensity="1" exposure="1" environment-image="neutral"
+        alt="重建的 3D 模型"></model-viewer>
+      <div id="viewer-images" class="viewer-images"></div>
+      <div class="viewer-actions">
+        <button id="spin-btn" class="active">自动旋转：开</button>
+        <a id="download-btn" class="button" download="model.glb">下载 GLB</a>
+        <button id="reset-btn">重置视角</button>
+      </div>
+
+      <!-- 针数估算 -->
+      <div class="stitches-box">
+        <h2>🧶 针数估算</h2>
+        <p class="hint">沿钩织轴逐圈切片估算每圈针数。密度取决于线材和钩针，先用预设试算。</p>
+        <div class="stitch-controls">
+          <select id="yarn-preset">
+            <option value="2.6,3.0" selected>4股牛奶棉 · 2.5mm 钩针</option>
+            <option value="auto">🔍 自动检测（实验，常报信号不足）</option>
+            <option value="2.3,2.7">5股棉线 · 3.0mm 钩针</option>
+            <option value="3.2,3.6">2股蕾丝线 · 1.75mm 钩针</option>
+            <option value="custom">自定义密度</option>
+          </select>
+          <input id="gauge-w" type="number" step="0.1" min="1" max="8" value="2.6" title="横向：针数/厘米">
+          <span class="x">×</span>
+          <input id="gauge-h" type="number" step="0.1" min="1" max="8" value="3.0" title="纵向：行数/厘米">
+          <span class="unit">针/行 每cm</span>
+        </div>
+        <div class="stitch-controls">
+          <select id="axis-select">
+            <option value="auto">钩织轴：自动</option>
+            <option value="x">X 轴</option>
+            <option value="y">Y 轴</option>
+            <option value="z">Z 轴</option>
+          </select>
+          <input id="real-size" type="number" step="0.5" min="2" max="500" placeholder="实际尺寸cm(可选)">
+          <button id="calc-btn" class="primary">计算针数</button>
+        </div>
+        <div id="axis-info" class="hint small"></div>
+        <div class="stitch-controls">
+          <span class="unit">图解标定：</span>
+          <input id="cal-round" type="number" min="1" placeholder="圈号">
+          <span class="unit">该圈实际</span>
+          <input id="cal-count" type="number" min="1" placeholder="针数">
+          <span class="unit">针</span>
+          <button id="cal-btn">标定密度并重算</button>
+        </div>
+        <p class="hint small">对照你的图解，从逐圈表里找一圈（如头部最宽处），填圈号和真实针数，密度会自动反推。可反复微调。</p>
+        <div id="cal-info" class="hint small"></div>
+        <div id="stitch-error" class="error hidden"></div>
+        <div id="stitch-result" class="hidden">
+          <div class="stitch-stats">
+            <div class="stat main"><b id="stat-total">-</b><span>总针数(估)</span></div>
+            <div class="stat"><b id="stat-rounds">-</b><span>圈数</span></div>
+            <div class="stat"><b id="stat-start">-</b><span>起始圈针数</span></div>
+            <div class="stat"><b id="stat-max">-</b><span>最大圈</span></div>
+            <div class="stat"><b id="stat-delta">-</b><span>加/减针次</span></div>
+          </div>
+          <div id="round-chart" class="round-chart"></div>
+          <div class="table-wrap">
+            <table class="round-table">
+              <thead><tr><th>圈</th><th>位置cm</th><th>周长cm</th><th>针数</th><th>增减</th></tr></thead>
+              <tbody id="round-rows"></tbody>
+            </table>
+          </div>
+          <p class="hint small" id="stitch-note"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 历史 -->
+    <section class="card" id="history-card">
+      <h2>重建记录 <span id="history-count" class="count hidden"></span></h2>
+      <div id="history" class="history"><p class="hint">还没有记录</p></div>
+    </section>
+  </main>
+
+  <footer>照片建议：纯色背景 · 光线均匀 · 玩偶完整入镜</footer>
+
+    <!-- 图解库 -->
+    <section class="card" id="patterns-card">
+      <h2>📖 图解库 <span id="patterns-count" class="count hidden"></span></h2>
+      <p class="hint">桌面「玩偶」文件夹里的图解，已自动解析每圈针数与总针数。重建同款玩偶时，可拿图解里的圈做「图解标定」。</p>
+      <input id="pattern-search" type="text" placeholder="搜索图解名称…" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;margin-bottom:12px;">
+      <div id="pattern-list" class="history"><p class="hint">加载中…</p></div>
+    </section>
+
+    <dialog id="pattern-dialog">
+      <div id="pattern-detail"></div>
+      <menu><button value="close" class="primary">关闭</button></menu>
+    </dialog>
+
+    <dialog id="code-dialog">
+    <form method="dialog">
+      <h3>请输入访问口令</h3>
+      <input id="code-input" type="password" placeholder="访问口令">
+      <menu><button value="cancel">取消</button><button id="code-ok" value="ok" class="primary">确定</button></menu>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
