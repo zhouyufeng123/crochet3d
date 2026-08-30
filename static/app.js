@@ -73,7 +73,7 @@ fileInput.onchange = () => { addFiles(fileInput.files); fileInput.value = ""; };
 function addFiles(list) {
   for (const file of list) {
     if (state.files.length >= 8) { alert("最多 8 张照片"); break; }
-    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { alert(`${file.name} 不是支持的图片格式`); continue; }
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { alert(`${file.name} 不是支持的图片格式。iPhone 拍照默认是 HEIC 格式，请先在手机上转成 JPG 再上传`); continue; }
     state.files.push({ file, url: URL.createObjectURL(file) });
   }
   renderThumbs();
