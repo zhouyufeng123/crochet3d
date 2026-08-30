@@ -499,11 +499,13 @@ $("pattern-dialog").addEventListener("close", () => {});
   renderThumbs();
   refreshHistory();
   state.historyTimer = setInterval(refreshHistory, 15000);
-  try {
-    allPatterns = await api("/api/patterns");
-    const count = $("patterns-count");
-    count.textContent = `${allPatterns.length} 份`;
-    count.classList.remove("hidden");
-    renderPatternList();
-  } catch { /* 图解库不可用时静默 */ }
+  if (!$("patterns-card").hidden) {
+    try {
+      allPatterns = await api("/api/patterns");
+      const count = $("patterns-count");
+      count.textContent = `${allPatterns.length} 份`;
+      count.classList.remove("hidden");
+      renderPatternList();
+    } catch { /* 图解库不可用时静默 */ }
+  }
 })();
