@@ -28,6 +28,12 @@ JOBS_DIR = DATA_DIR / "jobs"
 # 重建记录保留天数，超期自动清理（防止模型文件撑爆磁盘）。0 = 不自动清理
 JOB_TTL_DAYS = int(os.environ.get("JOB_TTL_DAYS", "0"))
 
+# 云端案例自动同步回 GitHub 仓库（防临时盘重启丢失）。
+# GITHUB_SYNC_TOKEN 留空 = 关闭同步
+GITHUB_SYNC_TOKEN = os.environ.get("GITHUB_SYNC_TOKEN", "")
+GITHUB_SYNC_REPO = os.environ.get("GITHUB_SYNC_REPO", "zhouyufeng123/crochet3d")
+SYNC_INTERVAL_MINUTES = int(os.environ.get("SYNC_INTERVAL_MINUTES", "30"))
+
 # 图解库：优先环境变量指定，其次仓库内 patterns/ 文件夹（云端），再次本机桌面文件夹
 _repo_patterns = BASE_DIR / "patterns"
 _desktop_patterns = Path(r"C:\Users\nebulaweek\Desktop\玩偶")

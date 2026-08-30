@@ -1,12 +1,17 @@
 import os
+import threading
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, jobs, patterns, prep
+from . import config, jobs, patterns, prep, sync
 
 app = FastAPI(title="钩织玩偶 3D 重建", docs_url=None, redoc_url=None)
+
+# 云端案例自动同步到 GitHub（配置了 GITHUB_SYNC_TOKEN 时启用）
+if config.GITHUB_SYNC_TOKEN:
+    threading.Thread(target=sync.loop, daemon=True).start()
 
 _patterns_cache: list | None = None
 
