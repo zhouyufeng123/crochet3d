@@ -10,6 +10,11 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+function authUrl(path) {
+  // img/model-viewer/a 标签无法携带自定义请求头，口令走 URL 参数
+  return `${path}?access_code=${encodeURIComponent(state.accessCode)}`;
+}
+
 /* ---------- API 封装：自动带口令，401 时弹窗要口令 ---------- */
 
 async function api(path, options = {}, retry = true) {
@@ -201,20 +206,20 @@ function showViewer(meta) {
   $("progress-card").classList.add("hidden");
   state.currentViewedJob = meta.id;
   $("viewer-title").textContent = `${meta.name} · 3D 模型`;
-  $("download-btn").href = `/api/jobs/${meta.id}/model.glb`;
+  $("download-btn").href = authUrl(`/api/jobs/${meta.id}/model.glb`);
   const imported = meta.source === "imported";
   $("viewer-meta").textContent =
     `创建于 ${new Date(meta.createdAt * 1000).toLocaleString("zh-CN")} · ` +
     `${meta.imageCount} 张输入照片` +
     (imported ? " · 从旧项目导入" : "");
   const viewer = $("viewer");
-  viewer.src = `/api/jobs/${meta.id}/model.glb`;
+  viewer.src = authUrl(`/api/jobs/${meta.id}/model.glb`);
 
   const strip = $("viewer-images");
   strip.innerHTML = "";
   for (let i = 0; i < (meta.imageCount || 0); i++) {
     const img = document.createElement("img");
-    img.src = `/api/jobs/${meta.id}/images/${i}.jpg`;
+    img.src = authUrl(`/api/jobs/${meta.id}/images/${i}.jpg`);
     img.loading = "lazy";
     img.alt = `输入照片 ${i + 1}`;
     strip.appendChild(img);
@@ -381,7 +386,7 @@ async function refreshHistory() {
       const chipText = job.status === "succeeded" ? "完成" : job.status === "failed" ? "失败" : "进行中";
       const imported = job.source === "imported" ? '<span class="chip imported">导入</span>' : "";
       card.innerHTML = `
-        <img src="/api/jobs/${job.id}/images/0.jpg" alt="" loading="lazy">
+        <img src="${authUrl(`/api/jobs/${job.id}/images/0.jpg`)}" alt="" loading="lazy">
         <div class="meta">
           <div class="name">${escapeHtml(job.name)}</div>
           <div class="sub">
