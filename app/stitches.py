@@ -47,7 +47,8 @@ DELTA_PRIOR = {
 # ---------------------------------------------------------------- 基础工具
 
 def _load_mesh(model_path, axis: str, real_size_cm: float | None):
-    scene = trimesh.load(str(model_path))
+    # skip_materials: 针数分析只需要几何，不加载纹理（省约 1/3 内存）
+    scene = trimesh.load(str(model_path), skip_materials=True)
     mesh = scene.to_geometry()
     mesh.merge_vertices()
     axis_idx = {"x": 0, "y": 1, "z": 2}[axis]
@@ -214,9 +215,8 @@ def _detect_heightmap(H, length_cm: float, band_k=BAND_K):
     }
 
 
-def _auto_analysis(model_path, axis_idx: int, gauge_h_prior: float):
-    """在模型原始尺度上检测，返回检测结果与建议缩放。信号不足时 scale=1。"""
-    mesh0, extent_cm, _ = _load_mesh(model_path, "xyz"[axis_idx], None)
+def _auto_analysis(mesh0, extent_cm: float, axis_idx: int, gauge_h_prior: float):
+    """在传入的未缩放网格上检测，返回检测结果与建议缩放。信号不足时 scale=1。"""
     H, _, zmin, zmax = _heightmap(mesh0, axis_idx)
     det = _detect_heightmap(H, extent_cm, BAND_K)
     scale = 1.0
@@ -277,27 +277,29 @@ def analyze(
         if key in _cache:
             return _cache[key]
 
+    # 只加载一次模型（此前加载 3 遍导致免费档内存超限）
+    mesh, model_extent_cm, _ = _load_mesh(model_path, axis, None)
     if axis == "auto":
-        pre = trimesh.load(str(model_path))
-        pre_mesh = pre.to_geometry()
-        axis = "xyz"[int(np.argmax(pre_mesh.extents))]
+        axis = "xyz"[int(np.argmax(mesh.extents))]
     axis_idx = {"x": 0, "y": 1, "z": 2}[axis]
 
-    # 1) auto：先在原始尺度上做高度图检测，得到行密度→自动缩放
+    # 1) auto：在原始尺度上做高度图检测，得到行密度→自动缩放
     auto_info = None
     if auto:
-        auto_info = _auto_analysis(model_path, axis_idx, gauge_h)
+        auto_info = _auto_analysis(mesh, model_extent_cm, axis_idx, gauge_h)
         if auto_scale:
             real_size_cm = auto_info["suggestRealSizeCm"]
 
-    mesh, model_extent_cm, scale = _load_mesh(model_path, axis, real_size_cm)
+    axes_cm = {
+        a: round(float(e) * 100.0, 1) for a, e in zip("xyz", mesh.extents)
+    }
+    scale = float(real_size_cm) / model_extent_cm if (real_size_cm and model_extent_cm > 0) else 1.0
+    if scale != 1.0:
+        mesh.apply_scale(scale)
+
     lo, hi = mesh.bounds[0][axis_idx], mesh.bounds[1][axis_idx]
     length_cm = (hi - lo) * 100.0
     area_cm2 = float(mesh.area) * 1e4
-    axes_cm = {
-        a: round(float(e) * 100.0, 1)
-        for a, e in zip("xyz", _load_mesh(model_path, axis, None)[0].extents)
-    }
 
     # 2) 逐圈光滑周长
     n_rounds = max(1, min(max_rounds, round(length_cm * gauge_h)))
@@ -475,4 +477,7 @@ def analyze(
     }
     with _lock:
         _cache[key] = result
+    import gc
+
+    gc.collect()  # 及时释放网格对象，避免免费档 512MB 累积超限
     return result

@@ -17,6 +17,9 @@ if config.GITHUB_SYNC_TOKEN:
 
 _patterns_cache: list | None = None
 
+# 针数分析并发闸：免费档 512MB，同时只允许一个模型分析
+_analyze_sem = threading.Semaphore(1)
+
 # 上传限速：同一 IP 每小时最多 12 次重建（防额度被刷）
 UPLOAD_LIMIT_PER_HOUR = int(os.environ.get("UPLOAD_LIMIT_PER_HOUR", "12"))
 _upload_times: dict[str, deque] = {}
@@ -212,9 +215,11 @@ def job_stitches(
         raise HTTPException(400, "实际尺寸超出范围（2-500cm）")
     if axis not in ("auto", "x", "y", "z"):
         raise HTTPException(400, "axis 需为 auto/x/y/z")
-    try:
-        from . import stitches
+    from . import stitches
 
+    if not _analyze_sem.acquire(timeout=120):
+        raise HTTPException(429, "已有分析在进行中，请稍后再试")
+    try:
         return stitches.analyze(
             path,
             axis=axis,
@@ -226,6 +231,8 @@ def job_stitches(
         )
     except Exception as exc:
         raise HTTPException(500, f"针数分析失败: {exc}")
+    finally:
+        _analyze_sem.release()
 
 
 @app.get("/api/jobs/{job_id}/images/{index}.jpg")
