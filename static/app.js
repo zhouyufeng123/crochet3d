@@ -37,7 +37,14 @@ function askAccessCode() {
     const dialog = $("code-dialog");
     const input = $("code-input");
     input.value = "";
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $("code-ok").click();
+      }
+    };
     dialog.showModal();
+    input.focus();
     dialog.onclose = () =>
       resolve(dialog.returnValue === "ok" ? input.value.trim() : null);
   });

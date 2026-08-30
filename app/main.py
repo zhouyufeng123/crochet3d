@@ -1,6 +1,6 @@
 import os
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -9,6 +9,15 @@ from . import config, jobs, patterns, prep
 app = FastAPI(title="钩织玩偶 3D 重建", docs_url=None, redoc_url=None)
 
 _patterns_cache: list | None = None
+
+
+def check_access(request: Request, code: str = "") -> None:
+    """设置了口令时统一校验：优先请求头 X-Access-Code，其次表单/查询参数。"""
+    if not config.ACCESS_PASSWORD:
+        return
+    provided = request.headers.get("x-access-code") or code
+    if provided != config.ACCESS_PASSWORD:
+        raise HTTPException(status_code=401, detail="需要访问口令")
 
 
 def get_patterns() -> list:
@@ -50,12 +59,6 @@ def pattern_detail(pid: str):
     raise HTTPException(404, "图解不存在")
 
 
-def check_access(code: str = "") -> None:
-    """设置了访问口令时，校验请求头 X-Access-Code。"""
-    if config.ACCESS_PASSWORD and code != config.ACCESS_PASSWORD:
-        raise HTTPException(status_code=401, detail="需要访问口令")
-
-
 @app.get("/api/health")
 def health():
     return {
@@ -69,11 +72,12 @@ def health():
 
 @app.post("/api/jobs")
 async def create_job(
+    request: Request,
     files: list[UploadFile] = File(...),
     name: str = Form(""),
     access_code: str = Form(""),
 ):
-    check_access(access_code)
+    check_access(request, access_code)
     if not files:
         raise HTTPException(400, "请至少上传一张图片")
     if len(files) > config.MAX_IMAGES:
@@ -96,14 +100,14 @@ async def create_job(
 
 
 @app.get("/api/jobs")
-def list_jobs(access_code: str = ""):
-    check_access(access_code)
+def list_jobs(request: Request, access_code: str = ""):
+    check_access(request, access_code)
     return jobs.list_jobs()
 
 
 @app.get("/api/jobs/{job_id}")
-def get_job(job_id: str, access_code: str = ""):
-    check_access(access_code)
+def get_job(request: Request, job_id: str, access_code: str = ""):
+    check_access(request, access_code)
     meta = jobs.read_meta(job_id)
     if meta is None:
         raise HTTPException(404, "任务不存在")
@@ -111,16 +115,16 @@ def get_job(job_id: str, access_code: str = ""):
 
 
 @app.delete("/api/jobs/{job_id}")
-def delete_job(job_id: str, access_code: str = ""):
-    check_access(access_code)
+def delete_job(request: Request, job_id: str, access_code: str = ""):
+    check_access(request, access_code)
     if not jobs.delete_job(job_id):
         raise HTTPException(404, "任务不存在")
     return {"ok": True}
 
 
 @app.get("/api/jobs/{job_id}/model.glb")
-def job_model(job_id: str, access_code: str = ""):
-    check_access(access_code)
+def job_model(request: Request, job_id: str, access_code: str = ""):
+    check_access(request, access_code)
     path = jobs._job_dir(job_id) / "model.glb"
     if not path.exists():
         raise HTTPException(404, "模型尚未生成")
@@ -129,6 +133,7 @@ def job_model(job_id: str, access_code: str = ""):
 
 @app.get("/api/jobs/{job_id}/stitches")
 def job_stitches(
+    request: Request,
     job_id: str,
     axis: str = "auto",
     gaugeW: str = "2.6",
@@ -137,7 +142,7 @@ def job_stitches(
     autoScale: int = 0,
     access_code: str = "",
 ):
-    check_access(access_code)
+    check_access(request, access_code)
     meta = jobs.read_meta(job_id)
     if meta is None:
         raise HTTPException(404, "任务不存在")
@@ -180,8 +185,8 @@ def job_stitches(
 
 
 @app.get("/api/jobs/{job_id}/images/{index}.jpg")
-def job_image(job_id: str, index: int, access_code: str = ""):
-    check_access(access_code)
+def job_image(request: Request, job_id: str, index: int, access_code: str = ""):
+    check_access(request, access_code)
     path = jobs._job_dir(job_id) / "images" / f"{index}.jpg"
     if not path.exists():
         raise HTTPException(404, "图片不存在")
