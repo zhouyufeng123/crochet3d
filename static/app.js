@@ -17,20 +17,39 @@ function authUrl(path) {
 
 /* ---------- API 封装：自动带口令，401 时弹窗要口令 ---------- */
 
-async function api(path, options = {}, retry = true) {
+let authPending = null; // 并发的 401 共享同一次口令输入
+
+async function ensureAuth() {
+  if (authPending) return authPending;
+  authPending = (async () => {
+    const code = await askAccessCode();
+    if (!code) throw new Error("需要访问口令");
+    const form = new FormData();
+    form.append("code", code);
+    const resp = await fetch("/api/login", { method: "POST", body: form });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || "口令不正确");
+    }
+    state.accessCode = code;
+    localStorage.setItem("accessCode", code);
+  })();
+  try {
+    await authPending;
+  } finally {
+    authPending = null;
+  }
+}
+
+async function api(path, options = {}, retried = false) {
   const headers = Object.assign(
     { "X-Access-Code": state.accessCode },
     options.headers || {}
   );
   const resp = await fetch(path, { ...options, headers });
-  if (resp.status === 401 && retry) {
-    const code = await askAccessCode();
-    if (code) {
-      state.accessCode = code;
-      localStorage.setItem("accessCode", code);
-      return api(path, options, false);
-    }
-    throw new Error("需要访问口令");
+  if (resp.status === 401 && !retried) {
+    await ensureAuth();
+    return api(path, options, true);
   }
   const body = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(body.detail || `请求失败 (${resp.status})`);
