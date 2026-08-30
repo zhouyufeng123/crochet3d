@@ -112,11 +112,14 @@ function renderThumbs() {
       ${index === 0 ? '<span class="tag">主图</span>' : '<button title="移除" data-del>×</button>'}
       ${index === 0 ? "" : '<button class="make-main" data-main>设为主图</button>'}
     `;
-    div.querySelector("[data-del]").onclick = () => {
-      URL.revokeObjectURL(item.url);
-      state.files.splice(index, 1);
-      renderThumbs();
-    };
+    const del = div.querySelector("[data-del]");
+    if (del) {
+      del.onclick = () => {
+        URL.revokeObjectURL(item.url);
+        state.files.splice(index, 1);
+        renderThumbs();
+      };
+    }
     const main = div.querySelector("[data-main]");
     if (main) main.onclick = () => {
       const [picked] = state.files.splice(index, 1);
