@@ -9,6 +9,13 @@ from collections import Counter
 
 from PIL import Image, ImageChops, ImageOps
 
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()  # 支持 iPhone 的 HEIC 格式
+except Exception:
+    pass
+
 OUTPUT_SIZE = 1024
 BG_SAMPLE = 12  # 取四角各 12x12 像素估计背景色
 DIFF_THRESHOLD = 18

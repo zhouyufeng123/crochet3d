@@ -47,6 +47,7 @@ else:
     PATTERNS_DIR = _repo_patterns  # 不存在时图解库为空，不影响其他功能
 
 MAX_IMAGES = 8
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/avif", "image/heic", "image/heif"}
+ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".heic", ".heif"}
 TASK_TIMEOUT_SECONDS = 40 * 60
 POLL_INTERVAL_SECONDS = 10

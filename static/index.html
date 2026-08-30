@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>钩织玩偶 3D 重建</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
-  <script type="module" src="/static/model-viewer.min.js?v=9"></script>
+  <link rel="stylesheet" href="/static/style.css?v=10">
+  <script type="module" src="/static/model-viewer.min.js?v=10"></script>
 </head>
 <body>
   <header>
@@ -24,7 +24,7 @@
           <p><strong>点击选择</strong> 或把照片拖到这里</p>
           <p class="sub">JPG / PNG / WebP，每张不超过 25MB</p>
         </div>
-        <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+        <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif" multiple hidden>
       </div>
       <div id="thumbs" class="thumbs hidden"></div>
       <div class="name-row">
@@ -149,6 +149,6 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=10"></script>
 </body>
 </html>

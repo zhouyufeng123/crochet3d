@@ -111,8 +111,9 @@ async def create_job(
 
     prepared: list[tuple[str, bytes]] = []
     for file in files:
-        if file.content_type not in config.ALLOWED_TYPES:
-            raise HTTPException(400, f"不支持的图片格式: {file.filename}（请用 JPG/PNG/WebP）")
+        ext = os.path.splitext(file.filename or "")[-1].lower()
+        if file.content_type not in config.ALLOWED_TYPES and ext not in config.ALLOWED_EXTS:
+            raise HTTPException(400, f"不支持的图片格式: {file.filename}（请用 JPG/PNG/WebP/AVIF/HEIC）")
         raw = await file.read()
         if len(raw) > 25 * 1024 * 1024:
             raise HTTPException(400, f"图片太大: {file.filename}（上限 25MB）")
