@@ -1,5 +1,6 @@
 import os
 import threading
+from collections import deque
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -14,6 +15,24 @@ if config.GITHUB_SYNC_TOKEN:
     threading.Thread(target=sync.loop, daemon=True).start()
 
 _patterns_cache: list | None = None
+
+# 上传限速：同一 IP 每小时最多 12 次重建（防额度被刷）
+UPLOAD_LIMIT_PER_HOUR = int(os.environ.get("UPLOAD_LIMIT_PER_HOUR", "12"))
+_upload_times: dict[str, deque] = {}
+_upload_lock = threading.Lock()
+
+
+def _check_upload_rate(request: Request) -> None:
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+    now = time.time()
+    with _upload_lock:
+        q = _upload_times.setdefault(ip, deque())
+        while q and q[0] < now - 3600:
+            q.popleft()
+        if len(q) >= UPLOAD_LIMIT_PER_HOUR:
+            raise HTTPException(429, "上传过于频繁，每小时最多 12 次重建，请稍后再试")
+        q.append(now)
 
 
 def check_access(request: Request, code: str = "") -> None:
@@ -83,6 +102,7 @@ async def create_job(
     access_code: str = Form(""),
 ):
     check_access(request, access_code)
+    _check_upload_rate(request)
     if not files:
         raise HTTPException(400, "请至少上传一张图片")
     if len(files) > config.MAX_IMAGES:
