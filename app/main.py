@@ -40,7 +40,11 @@ def check_access(request: Request, code: str = "") -> None:
     """设置了口令时统一校验：优先请求头 X-Access-Code，其次表单/查询参数。"""
     if not config.ACCESS_PASSWORD:
         return
-    provided = request.headers.get("x-access-code") or code
+    provided = (
+        request.cookies.get("access")
+        or request.headers.get("x-access-code")
+        or code
+    )
     if provided != config.ACCESS_PASSWORD:
         raise HTTPException(status_code=401, detail="需要访问口令")
 
@@ -82,6 +86,19 @@ def pattern_detail(pid: str):
         if p["id"] == pid:
             return p
     raise HTTPException(404, "图解不存在")
+
+
+@app.post("/api/login")
+def login(request: Request, code: str = Form("")):
+    """校验口令并下发 HttpOnly Cookie（30 天），后续请求自动携带。"""
+    if config.ACCESS_PASSWORD and code != config.ACCESS_PASSWORD:
+        raise HTTPException(status_code=401, detail="口令不正确")
+    resp = JSONResponse({"ok": True})
+    if config.ACCESS_PASSWORD:
+        resp.set_cookie(
+            "access", code, max_age=30 * 86400, httponly=True, samesite="lax"
+        )
+    return resp
 
 
 @app.get("/api/health")
