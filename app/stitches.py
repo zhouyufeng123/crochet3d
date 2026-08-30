@@ -47,10 +47,13 @@ DELTA_PRIOR = {
 # ---------------------------------------------------------------- 基础工具
 
 def _load_mesh(model_path, axis: str, real_size_cm: float | None):
+    """加载网格（跳过材质省内存）。axis 可为 auto，返回 (mesh, 轴长cm, 缩放, axis_idx)。"""
     # skip_materials: 针数分析只需要几何，不加载纹理（省约 1/3 内存）
     scene = trimesh.load(str(model_path), skip_materials=True)
     mesh = scene.to_geometry()
     mesh.merge_vertices()
+    if axis == "auto":
+        axis = "xyz"[int(np.argmax(mesh.extents))]
     axis_idx = {"x": 0, "y": 1, "z": 2}[axis]
     extent_cm = float(mesh.extents[axis_idx]) * 100.0
     scale = 1.0
@@ -58,7 +61,7 @@ def _load_mesh(model_path, axis: str, real_size_cm: float | None):
         scale = float(real_size_cm) / extent_cm
     if scale != 1.0:
         mesh.apply_scale(scale)
-    return mesh, extent_cm, scale
+    return mesh, extent_cm, scale, axis_idx, axis
 
 
 def _loop_metrics(poly: Polygon) -> tuple[float, float, np.ndarray]:
@@ -278,10 +281,7 @@ def analyze(
             return _cache[key]
 
     # 只加载一次模型（此前加载 3 遍导致免费档内存超限）
-    mesh, model_extent_cm, _ = _load_mesh(model_path, axis, None)
-    if axis == "auto":
-        axis = "xyz"[int(np.argmax(mesh.extents))]
-    axis_idx = {"x": 0, "y": 1, "z": 2}[axis]
+    mesh, model_extent_cm, _, axis_idx, axis = _load_mesh(model_path, axis, None)
 
     # 1) auto：在原始尺度上做高度图检测，得到行密度→自动缩放
     auto_info = None
