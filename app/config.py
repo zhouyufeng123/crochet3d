@@ -28,8 +28,17 @@ JOBS_DIR = DATA_DIR / "jobs"
 # 重建记录保留天数，超期自动清理（防止模型文件撑爆磁盘）。0 = 不自动清理
 JOB_TTL_DAYS = int(os.environ.get("JOB_TTL_DAYS", "0"))
 
-# 图解库文件夹（docx 图解）
-PATTERNS_DIR = Path(os.environ.get("PATTERNS_DIR", r"C:\Users\nebulaweek\Desktop\玩偶"))
+# 图解库：优先环境变量指定，其次仓库内 patterns/ 文件夹（云端），再次本机桌面文件夹
+_repo_patterns = BASE_DIR / "patterns"
+_desktop_patterns = Path(r"C:\Users\nebulaweek\Desktop\玩偶")
+if os.environ.get("PATTERNS_DIR"):
+    PATTERNS_DIR = Path(os.environ["PATTERNS_DIR"])
+elif _repo_patterns.exists():
+    PATTERNS_DIR = _repo_patterns
+elif _desktop_patterns.exists():
+    PATTERNS_DIR = _desktop_patterns
+else:
+    PATTERNS_DIR = _repo_patterns  # 不存在时图解库为空，不影响其他功能
 
 MAX_IMAGES = 8
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
