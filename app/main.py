@@ -17,8 +17,10 @@ if config.GITHUB_SYNC_TOKEN:
 
 _patterns_cache: list | None = None
 
-# 针数分析并发闸：免费档 512MB，同时只允许一个模型分析
+# 针数分析：后台执行 + 结果注册表（免费档 CPU 慢，异步避免请求超时）
 _analyze_sem = threading.Semaphore(1)
+_async_results: dict = {}
+_async_lock = threading.Lock()
 
 # 上传限速：同一 IP 每小时最多 12 次重建（防额度被刷）
 UPLOAD_LIMIT_PER_HOUR = int(os.environ.get("UPLOAD_LIMIT_PER_HOUR", "12"))
@@ -187,6 +189,7 @@ def job_stitches(
     gaugeH: float = 3.0,
     realSize: float | None = None,
     autoScale: int = 0,
+    run_async: int = 0,
     access_code: str = "",
 ):
     check_access(request, access_code)
@@ -215,24 +218,53 @@ def job_stitches(
         raise HTTPException(400, "实际尺寸超出范围（2-500cm）")
     if axis not in ("auto", "x", "y", "z"):
         raise HTTPException(400, "axis 需为 auto/x/y/z")
-    from . import stitches
+    params = dict(
+        path=path,
+        axis=axis,
+        gauge_w=gauge_w,
+        gauge_h=gaugeH,
+        real_size_cm=realSize,
+        auto=auto,
+        auto_scale=bool(autoScale),
+    )
+    kkey = repr((str(path), int(os.path.getmtime(path)), sorted(params.items())))
 
-    if not _analyze_sem.acquire(timeout=120):
-        raise HTTPException(429, "已有分析在进行中，请稍后再试")
-    try:
-        return stitches.analyze(
-            path,
-            axis=axis,
-            gauge_w=gauge_w,
-            gauge_h=gaugeH,
-            real_size_cm=realSize,
-            auto=auto,
-            auto_scale=bool(autoScale),
-        )
-    except Exception as exc:
-        raise HTTPException(500, f"针数分析失败: {exc}")
-    finally:
-        _analyze_sem.release()
+    if not run_async:
+        # 同步路径（兼容旧用法/小模型）
+        from . import stitches
+
+        try:
+            return stitches.analyze(**params)
+        except Exception as exc:
+            raise HTTPException(500, f"针数分析失败: {exc}")
+
+    # 异步路径：首次启动后台分析，之后轮询取结果
+    with _async_lock:
+        entry = _async_results.get(kkey)
+        if entry is None:
+            _async_results[kkey] = {"__running": True}
+
+            def _run():
+                from . import stitches
+
+                try:
+                    with _analyze_sem:
+                        result = stitches.analyze(**params)
+                    with _async_lock:
+                        entry2 = dict(result)
+                        entry2["__done"] = True
+                        _async_results[kkey] = entry2
+                except Exception as exc:
+                    with _async_lock:
+                        _async_results[kkey] = {"__error": f"针数分析失败: {exc}"}
+
+            threading.Thread(target=_run, daemon=True).start()
+            return JSONResponse({"__processing": True}, status_code=202)
+        if entry.get("__running"):
+            return JSONResponse({"__processing": True}, status_code=202)
+        if entry.get("__error"):
+            return JSONResponse({"error": entry["__error"]}, status_code=500)
+        return entry
 
 
 @app.get("/api/jobs/{job_id}/images/{index}.jpg")
