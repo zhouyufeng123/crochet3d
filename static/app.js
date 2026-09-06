@@ -287,12 +287,12 @@ $("calc-btn").onclick = async () => {
   if (!state.currentViewedJob) return;
   const btn = $("calc-btn");
   btn.disabled = true;
-  btn.textContent = "计算中…（首次约几秒）";
   $("stitch-error").classList.add("hidden");
   $("stitch-result").classList.add("hidden");
   const params = new URLSearchParams({
     axis: $("axis-select").value,
     gaugeH: $("gauge-h").value || 3.0,
+    run_async: "1",
   });
   if ($("yarn-preset").value === "auto") {
     params.set("gaugeW", "auto");
@@ -303,9 +303,21 @@ $("calc-btn").onclick = async () => {
   const realSize = $("real-size").value;
   if (realSize) params.set("realSize", realSize);
   params.set("access_code", state.accessCode);
+  const url = `/api/jobs/${state.currentViewedJob}/stitches?${params}`;
   try {
-    const r = await api(`/api/jobs/${state.currentViewedJob}/stitches?${params}`);
-    renderStitches(r);
+    let done = false;
+    for (let i = 0; i < 100 && !done; i++) {
+      const r = await api(url);
+      if (r.__processing) {
+        btn.textContent = `分析中…(${i * 3}秒)`;
+        await new Promise((res) => setTimeout(res, 3000));
+        continue;
+      }
+      if (r.error) throw new Error(r.error);
+      renderStitches(r);
+      done = true;
+    }
+    if (!done) throw new Error("分析超时，请稍后重试");
   } catch (err) {
     $("stitch-error").textContent = err.message;
     $("stitch-error").classList.remove("hidden");
