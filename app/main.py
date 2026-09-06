@@ -219,7 +219,7 @@ def job_stitches(
     if axis not in ("auto", "x", "y", "z"):
         raise HTTPException(400, "axis 需为 auto/x/y/z")
     params = dict(
-        path=path,
+        model_path=path,
         axis=axis,
         gauge_w=gauge_w,
         gauge_h=gaugeH,
@@ -263,7 +263,10 @@ def job_stitches(
         if entry.get("__running"):
             return JSONResponse({"__processing": True}, status_code=202)
         if entry.get("__error"):
-            return JSONResponse({"error": entry["__error"]}, status_code=500)
+            err = entry["__error"]
+            with _async_lock:
+                _async_results.pop(kkey, None)
+            return JSONResponse({"error": err}, status_code=500)
         return entry
 
 
