@@ -124,7 +124,7 @@ def _sync_once(token: str, repo: str) -> int:
         new_commit.raise_for_status()
 
         upd = client.patch(
-            f"{GH}/repos/{repo}/git/ref/heads/main",
+            f"{GH}/repos/{repo}/git/refs/heads/main",
             headers=h,
             json={"sha": new_commit.json()["sha"]},
         )
